@@ -6,17 +6,16 @@ if not cap.isOpened():
     print("Gagal: Webcam tidak terdeteksi")
     exit(1)
 
-print("Webcam aktif!")
-print(f"Resolusi: {int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))}x{int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
-print(f"FPS: {cap.get(cv2.CAP_PROP_FPS)}")
+print("Webcam aktif! Tekan 'q' untuk keluar.")
 
-ret, frame = cap.read()
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        print("Gagal membaca frame")
+        break
+    cv2.imshow("Webcam", frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
-if ret:
-    print("Frame berhasil dibaca ✅")
-    cv2.imwrite("webcam_test.png", frame)
-    print("Gambar tersimpan: webcam_test.png")
-else:
-    print("Gagal membaca frame ❌")
-
-cap.release()   
+cap.release()
+cv2.destroyAllWindows()   
