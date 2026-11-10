@@ -4,60 +4,50 @@
 #define CAN_CS 10
 MCP_CAN CAN(CAN_CS);
 
-const int TURN_THRESHOLD = 30;   // -15..15 = lurus (0), > 15 = kanan (2), < -15 = kiri (1)
+const int TURN_THRESHOLD = 15;   // px, sama dengan di Python
 
-char buf[12];
-uint8_t len = 0;
+char rxBuf[16];
+byte rxLen = 0;
 
-void sendCommand(uint8_t cmd) {
-  byte data[5];
+void kirimKeCAN(int error) {
+
+  byte cmd = 0;                                  // lurus
+  if (error >  TURN_THRESHOLD) cmd = 2;          // kanan
+  if (error < -TURN_THRESHOLD) cmd = 1;          // kiri
+
+  byte data[3];
   data[0] = cmd;
+  data[1] = (byte)(error & 0xFF);
+  data[2] = (byte)((error >> 8) & 0xFF);
 
-  unsigned long currentMicros = micros();
-  memcpy(&data[1], &currentMicros, 4);
-
-  CAN.sendMsgBuf(0x100, 0, 5, data);   // frame sama persis dengan kode lama Anda
-}
-
-void processLine() {
-  buf[len] = 0;
-  int e = atoi(buf);
-
-  uint8_t cmd;
-  if (e > TURN_THRESHOLD)       cmd = 2;   // kanan
-  else if (e < -TURN_THRESHOLD) cmd = 1;   // kiri
-  else                          cmd = 0;   // lurus
-
-  sendCommand(cmd);
+  CAN.sendMsgBuf(0x100, 0, 3, data);
 
   Serial.print("Kirim: error ");
-  Serial.print(e);
-  Serial.print(" -> ");
+  Serial.print(error);
+  Serial.print(" cmd ");
   Serial.println(cmd);
 }
 
 void setup() {
   Serial.begin(115200);
-  while (CAN.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) != CAN_OK) {
-    Serial.println("CAN init gagal, mencoba lagi...");
-    delay(500);
-  }
+  while (CAN.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) != CAN_OK) { delay(500); }
   CAN.setMode(MCP_NORMAL);
-  Serial.println("Master siap");
 }
 
 void loop() {
   while (Serial.available()) {
     char c = Serial.read();
 
-    if (c == '\n' || c == '\r') {
-      if (len > 0) {          // baris selesai -> proses
-        processLine();
-        len = 0;
+    if (c == '\n') {
+      if (rxLen > 0) {
+        rxBuf[rxLen] = 0;
+        kirimKeCAN(atoi(rxBuf));
       }
-    } else if ((c >= '0' && c <= '9') || c == '-') {
-      if (len < sizeof(buf) - 1) buf[len++] = c;
+      rxLen = 0;
     }
-    // karakter lain (huruf, spasi, dll.) diabaikan
+    else if (c != '\r') {
+      if (rxLen < sizeof(rxBuf) - 1) rxBuf[rxLen++] = c;
+      else rxLen = 0;
+    }
   }
 }
